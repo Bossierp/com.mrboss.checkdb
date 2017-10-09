@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+           id="com.mrboss.checkdb"
+      version="0.2.8">
+
+    <name>MrBoss CheckDB</name>
+    <description>MrBoss CheckDB Plugin</description>
+    <license>Apache 2.0</license>
+    <keywords>cordova,android,CheckDB</keywords>
+    <repo>https://github.com/ZhichengChen/cordova-plugin-android-myalert.git</repo>
+    <issue>https://github.com/ZhichengChen/cordova-plugin-android-myalert/issues</issue>
+
+    <js-module src="www/checkdb.js" name="CheckDB">
+        <merges target="navigator.CheckDB" />
+    </js-module>
+
+    <!-- android -->
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="CheckDB">
+                <param name="android-package" value="com.mrboss.checkdb.CheckDB"/>
+            </feature>
+        </config-file>
+
+        <source-file src="src/android/CheckDB.java" target-dir="src/com/mrboss/checkdb" />
+
+    </platform>
+
+</plugin>
