@@ -55,33 +55,35 @@ import android.provider.Settings;
 import android.media.*;
 
 public class CheckDB extends CordovaPlugin {
+	private CheckDB checkdb = this;
 	private Context context;       //app对象
-	private Context basecontext;  //重启目标
-	private boolean isRunning = true;
+	private Context basecontext;  //重启目标对象
+	private boolean isRunning = true;  //运行监听数据库线程条件
     private long dbTime;  //原数据库的最后一次修改时间
     private long bpTime;  //备份数据库的最后一次修改时间
-    private ContactDao dao;
+    private ChainShopDao dao;  //操作数据库工具对象
 	
     private int dbBackupCount;  //备份数据库中表的数量
     private int dbCount;  //当前数据库中表的数量
-    SharedPreferences sps;
-	private CheckDB checkdb = this;
+	//private int count;    //临时记录数据库表的数量,缓存作用
+    SharedPreferences sps;  //记录备份数据库状态的偏好设置工具对象
+	
 	private File dbFile;  //源数据库文件
-	private DBOpenHelper sdbHelper;  //获取目标操作数据库对象
+	private DBOpenHelper sdbHelper = null;  //获取目标操作数据库对象
 	private long modifedTime;  //当前数据库最后一次修改时间
 	private int tables;  //当前数据库中表的数量
 	
 
-  @Override
+  @Override  //本插件的执行入口
   public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
     context = cordova.getActivity().getApplicationContext();
 	basecontext = cordova.getActivity().getBaseContext();
 	
-	if ("CheckDB".equals(action)) {
+	if ("CheckDB_Action".equals(action)) {
       try {
 		  
           sps = context.getSharedPreferences("tablesCount", Context.MODE_PRIVATE);
-	      dao = new ContactDao(context);
+	      dao = new ChainShopDao(context);
 		  
 		  CheckThread ct = new CheckThread();
 		  ct.start();
@@ -120,6 +122,9 @@ public class CheckDB extends CordovaPlugin {
         //File file = new File();
         dbBackupCount = sps.getInt("dbTableCount", 2);
         dbCount = dao.calcTable();
+		if(dbCount == 0){
+			return;  //获取数据库操作对象失败，结束本次操作
+		}
         //Log.d("tag", "db=" + dbCount + ", bp=" + dbBackupCount);
         dbFile = context.getDatabasePath("/data/data/com.mrboss.offlineposapp/databases/ChainShop_Pos_5_0.db");
         dbTime = (dbFile.lastModified() / 1000);
@@ -144,9 +149,9 @@ public class CheckDB extends CordovaPlugin {
 		private static final String COMMAND_BACKUP = "backupDatabase";  //备份
 		private static final String COMMAND_RESTORE = "restroeDatabase";  //恢复
 		private Context mContext;
-		private ContactDao dao = null;
+		private ChainShopDao dao = null;
 	
-		public BackupTask(Context context, ContactDao dao) {
+		public BackupTask(Context context, ChainShopDao dao) {
 			this.dao = dao;
 			this.mContext = context;
 		}
@@ -159,7 +164,7 @@ public class CheckDB extends CordovaPlugin {
 					.getExternalStorageDirectory().getAbsolutePath()
 					+ "/dlion/db_dlion.db");*/
 			dbFile = mContext.getDatabasePath("/data/data/com.mrboss.offlineposapp/databases/ChainShop_Pos_5_0.db");
-			File exportDir = new File("/data/data/com.mrboss.offlineposapp/", "BackupDB");
+			File exportDir = new File(Environment.getExternalStorageDirectory(), "BackupDB");
 			if (!exportDir.exists()) {
 				exportDir.mkdirs();
 			}
@@ -224,36 +229,59 @@ public class CheckDB extends CordovaPlugin {
 		}
 	
 		/**
-		* 保存当前备份数据库状态信息
+		* 保存数据库状态信息
 		* @param dbFile
 		*/
 		private void saveDBStateInfo(File dbFile){
 			modifedTime = (dbFile.lastModified() / 1000);
 			tables = dao.calcTable();
+			if(tables == 0){
+				return;
+			}
 			SharedPreferences sps = mContext.getSharedPreferences("tablesCount", Context.MODE_PRIVATE);
 			SharedPreferences.Editor editor = sps.edit();
 			editor.putLong("dbModifedTime", modifedTime);
 			editor.putInt("dbTableCount", tables);
 			editor.commit();
-			//Log.d("tag", tables + "");
+			//Log.d("tag", tables + "写入记录信息成功");  //测试用
 		}
 	
 	}
   
-  
-	class ContactDao {
+	/**
+	* 操作数据库工具类
+	*/
+	class ChainShopDao {
 		private Context context;
-		public ContactDao(Context context) {
+		public ChainShopDao(Context context) {
 			this.context = context;
 		}
 		int count = 0;
-	
+		
 		/**
 		* 统计数据库中表的数量
 		* @return
 		*/
 		public int calcTable(){
-			sdbHelper = new DBOpenHelper(context);
+			if(sdbHelper == null){
+				try {
+					sdbHelper = new DBOpenHelper(context);
+					//sdbHelper = null;  //测试用
+					count = calc(sdbHelper);
+					//Log.d("正常输出", "count=" + count);  //测试用
+					return count;
+				}catch (Exception e){
+					//由于有两个操作数据库对象,防止崩溃
+					//Log.d("获取数据库对象失败", "count=" + count);  //测试用
+					return count;
+				}
+			}else{
+				count = calc(sdbHelper);
+				return count;
+			}
+		}
+		
+		public int calc(DBOpenHelper sdbHelper){
 			SQLiteDatabase sdb = sdbHelper.getReadableDatabase();
 			Cursor cursor = sdb.rawQuery("select name from sqlite_master where type='table' order by name", null);
 			count = 0;
@@ -262,12 +290,12 @@ public class CheckDB extends CordovaPlugin {
 				//String name = cursor.getString(0);
 				//Log.i("System.out", name);
 				count++;
-				//Toast.makeText(this, name, Toast.LENGTH_SHORT).show();
 			}
 			cursor.close();
 			sdb.close();
 			return count;
 		}
+		
 	}
 	
 	class DBOpenHelper extends SQLiteOpenHelper{
@@ -281,12 +309,10 @@ public class CheckDB extends CordovaPlugin {
 		public DBOpenHelper(Context context){
 			this(context, "ChainShop_Pos_5_0.db", null, SDB_VERSION);
 		}
-	
 		@Override  //当数据库第一次创建时执行(创建数据表和添加一些必要的数据),new对象
 		public void onCreate(SQLiteDatabase db) {
 	
 		}
-	
 		@Override  //数据库版本升级
 		public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
 	
