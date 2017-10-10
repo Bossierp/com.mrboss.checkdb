@@ -2,7 +2,7 @@
 
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
            id="com.mrboss.checkdb"
-      version="0.3.1">
+      version="0.2.8">
 
     <name>MrBoss CheckDB</name>
     <description>MrBoss CheckDB Plugin</description>

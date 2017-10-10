@@ -35,6 +35,6 @@ module.exports = {
      * @param {Function} completeCallback   The callback that is called when user clicks on a button.
      */
     CheckDB: function(successCallback, errorCallback) {
-        exec(successCallback, null, 'CheckDB', 'CheckDB_Action', [successCallback, errorCallback]);
+        exec(successCallback, null, 'CheckDB', 'CheckDB', [successCallback, errorCallback]);
     }
 };
